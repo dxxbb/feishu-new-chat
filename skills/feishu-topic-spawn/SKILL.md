@@ -60,7 +60,7 @@ If no matching group is found:
 
 ### 2. Parse requested action
 
-Support three shapes:
+Support four shapes:
 
 #### A. Open topic only
 Example:
@@ -91,6 +91,19 @@ Interpret as:
 - then a thread reply
 - optionally prepend a Feishu `<at user_id="...">...</at>` mention
 
+#### D. Open topic + carry over prior context + ask a new question
+Example:
+```text
+开个新话题聊这个，把前面几条带过去，然后追问：自由现金流有几个指数？有什么区别？
+```
+
+Interpret as:
+- create a clean new topic
+- carry over only the minimum relevant context
+- put both **context and the new question into the same top-level topic-opening message**
+- make the new question impossible to miss
+- avoid a second seed message unless the user explicitly wants an extra in-thread reply
+
 ### 3. Create the topic
 
 Use `feishu_im_user_message.send`:
@@ -119,6 +132,52 @@ If an @mention is requested, format it directly in the text:
 
 Use the current user open_id when the user says `@我`.
 
+### 5. When carrying context into a new topic, keep it simple
+
+For **context carry-over + new question**, prefer **one single top-level message**.
+Do not add a second seed reply unless the user explicitly wants one, because two user messages may trigger two assistant replies.
+
+Use a simple structure:
+
+```text
+<标题>
+
+问题：...
+
+前情提要：...
+```
+
+Or, when a short summary reads better:
+
+```text
+<标题>
+
+问题：...
+
+前情提要：
+- ...
+- ...
+```
+
+Rules:
+- Put the real question first.
+- Keep the summary short.
+- Do not add extra instruction-y wording unless absolutely needed.
+- The goal is not to outsmart the model; the goal is to make the follow-up obvious.
+
+Example:
+
+```text
+HALO：自由现金流指数有什么区别
+
+问题：
+A股里自由现金流目前有几个主流指数？它们分别有什么区别？
+
+前情提要：
+- 刚讨论过 HALO 在 A 股的映射，涉及资源、能源、公用事业、电网、交运、央企红利、现金流。
+- 这次只是在这个基础上继续追问自由现金流指数。
+```
+
 ## Parsing guidance
 
 Treat all of the following as likely triggers:
@@ -134,6 +193,7 @@ Useful parsing rules:
 - Split on the first `：` / `:` to isolate the command from the payload.
 - Treat `｜` / `|` as a likely separator between `title` and `first reply`.
 - Phrases like `然后回复一条`, `回一条`, `在话题里回复`, `并且 at 我`, `@我` indicate an in-thread follow-up.
+- Phrases like `把前面几条带过去`, `把刚才聊的内容带过去`, `新开一个话题聊这个`, `继续追问`, `新的追问` indicate a **context-carrying seed reply** rather than a plain freeform reply.
 - If only one segment exists, treat it as topic text only.
 
 Do not overfit parsing. If the message is ambiguous, ask one short clarification question.
@@ -203,3 +263,16 @@ Action:
 ```text
 <at user_id="ou_xxx">Name</at> 再测一次
 ```
+
+### Example 4: carry context + ask one new question cleanly
+User:
+```text
+开个新话题聊这个，把前面几条带过去，然后追问：自由现金流有几个指数？有什么区别？
+```
+
+Action:
+- create a fresh topic title focused on the new question
+- send **one top-level topic-opening message**
+- put `问题：...` first
+- then add a short `前情提要：...`
+- do **not** add a second seed reply unless the user explicitly asks for one
